@@ -1,3 +1,17 @@
+local function fishtrap_get_capacity()
+    local capacity = tonumber(max_catched_fishes)
+    if not capacity then
+        capacity = (minimal and tonumber(minimal.stack_max_heavy)) or 99
+    end
+    return math.max(1, math.floor(capacity))
+end
+
+local function fishtrap_get_contents(meta)
+    local fish = meta:get_int("catched_fishes")
+    local rotten = meta:get_int("rotten_fishes")
+    return fish, rotten, fish + rotten
+end
+
 -- Valid setup requires sea water above and on all four horizontal sides.
 local function fishtrap_is_properly_set(pos)
     local checks = {
@@ -19,19 +33,25 @@ local function fishtrap_is_properly_set(pos)
 end
 
 local function fishtrap_set_state(pos, meta, state)
-    local catched_fishes = meta:get_int("catched_fishes")
-    local rotten_fishes = meta:get_int("rotten_fishes")
-    local total_contents = catched_fishes + rotten_fishes
+    local catched_fishes, rotten_fishes = fishtrap_get_contents(meta)
+    local capacity = fishtrap_get_capacity()
+
     meta:set_string("fishtrap_state", state)
     minimal.infotext_set_key(
         pos,
         "Contents",
-        catched_fishes .. " fish, " .. rotten_fishes .. " rotten / " .. max_catched_fishes
+        catched_fishes .. " fish, " .. rotten_fishes .. " rotten / " .. capacity
     )
 
     if state == "full" then
         minimal.infotext_set_key(pos, "Status", "Full")
-        minimal.infotext_set_key(pos, "Note", "Ready to collect")
+        minimal.infotext_set_key(pos, "Note", "Aging started (30 min)")
+        return
+    end
+
+    if state == "loaded" then
+        minimal.infotext_set_key(pos, "Status", "Loaded")
+        minimal.infotext_set_key(pos, "Note", "Has fish, still catching")
         return
     end
 
@@ -41,25 +61,66 @@ local function fishtrap_set_state(pos, meta, state)
         return
     end
 
-    minimal.infotext_set_key(pos, "Status", "Faulty")
-    minimal.infotext_set_key(pos, "Note", "Needs sea water above and on all sides")
+    if state == "misplaced" then
+        minimal.infotext_set_key(pos, "Status", "Misplaced")
+        minimal.infotext_set_key(pos, "Note", "Needs sea water above and on all sides")
+        return
+    end
+
+    if state == "faulty" then
+        minimal.infotext_set_key(pos, "Status", "Faulty")
+        minimal.infotext_set_key(pos, "Note", "Damaged trap: no longer operational")
+        return
+    end
+
+    if state == "deteriorated" then
+        minimal.infotext_set_key(pos, "Status", "Too old and deteriorated")
+        minimal.infotext_set_key(pos, "Note", "Only rotten fish remains")
+        return
+    end
+
+    minimal.infotext_set_key(pos, "Status", "Unknown")
+    minimal.infotext_set_key(pos, "Note", "")
+end
+
+local function fishtrap_arm_full_decay_timer(pos, meta)
+    if meta:get_int("full_decay_armed") == 1 then
+        return
+    end
+    meta:set_int("full_decay_armed", 1)
+    local decay_time = tonumber(fishtrap_full_decay_time) or (30 * 60)
+    minetest.get_node_timer(pos):start(decay_time)
 end
 
 local function fishtrap_refresh_state(pos, meta)
-    local catched_fishes = meta:get_int("catched_fishes")
-    local rotten_fishes = meta:get_int("rotten_fishes")
-    if (catched_fishes + rotten_fishes) >= max_catched_fishes then
+    local current = meta:get_string("fishtrap_state")
+    if current == "faulty" or current == "deteriorated" then
+        fishtrap_set_state(pos, meta, current)
+        return current
+    end
+
+    local _, _, total = fishtrap_get_contents(meta)
+    local capacity = fishtrap_get_capacity()
+
+    if total >= capacity then
         fishtrap_set_state(pos, meta, "full")
+        fishtrap_arm_full_decay_timer(pos, meta)
         return "full"
     end
 
+    meta:set_int("full_decay_armed", 0)
+
     if fishtrap_is_properly_set(pos) then
+        if total > 0 then
+            fishtrap_set_state(pos, meta, "loaded")
+            return "loaded"
+        end
         fishtrap_set_state(pos, meta, "proper")
         return "proper"
     end
 
-    fishtrap_set_state(pos, meta, "faulty")
-    return "faulty"
+    fishtrap_set_state(pos, meta, "misplaced")
+    return "misplaced"
 end
 
 minetest.register_node("exile_fishtrap:fishtrap", {
@@ -150,53 +211,72 @@ minetest.register_node("exile_fishtrap:fishtrap", {
         local meta = minetest.get_meta(pos)
         meta:set_int("catched_fishes", 0)
         meta:set_int("rotten_fishes", 0)
-        meta:set_string("fishtrap_state", "faulty")
+        meta:set_int("full_decay_armed", 0)
+        meta:set_string("fishtrap_state", "misplaced")
         fishtrap_refresh_state(pos, meta)
-        -- Always run the timer so the trap can recover automatically if water setup is fixed later.
         minetest.get_node_timer(pos):start(fishtrap_timer)
     end,
 
     on_timer = function(pos, elapsed)
         local meta = minetest.get_meta(pos)
-        local state = fishtrap_refresh_state(pos, meta)
+        local state = meta:get_string("fishtrap_state")
+
+        if state == "full" then
+            local capacity = fishtrap_get_capacity()
+            local min_rotten = math.min(5, capacity)
+            local rotten_amount = math.random(min_rotten, capacity)
+            meta:set_int("catched_fishes", 0)
+            meta:set_int("rotten_fishes", rotten_amount)
+            meta:set_int("full_decay_armed", 0)
+            fishtrap_set_state(pos, meta, "deteriorated")
+            return false
+        end
+
+        if state == "faulty" or state == "deteriorated" then
+            fishtrap_set_state(pos, meta, state)
+            return false
+        end
+
+        state = fishtrap_refresh_state(pos, meta)
 
         if state == "full" then
             return false
         end
 
-        if state ~= "proper" then
+        if state == "misplaced" then
             return true
         end
 
-        local catched_fishes = meta:get_int("catched_fishes")
-        local rotten_fishes = meta:get_int("rotten_fishes")
+        local p_faulty = tonumber(probability_faulty_trap) or 0
+        if math.random() < p_faulty then
+            fishtrap_set_state(pos, meta, "faulty")
+            return false
+        end
 
-        if math.random() < probability_catch_fish then
-            if (catched_fishes + rotten_fishes) < max_catched_fishes then
+        local catched_fishes, rotten_fishes, total = fishtrap_get_contents(meta)
+        local capacity = fishtrap_get_capacity()
+
+        local p_catch = tonumber(probability_catch_fish) or 0
+        if math.random() < p_catch then
+            if total < capacity then
                 catched_fishes = catched_fishes + 1
-
-                if catched_fishes > max_catched_fishes then
-                    catched_fishes = max_catched_fishes
-                end
-
                 meta:set_int("catched_fishes", catched_fishes)
             end
         end
 
         -- Once per cycle, one trapped fish can rot.
-        if catched_fishes > 0 and math.random() < probability_rotten_fish then
+        local p_rotten = tonumber(probability_rotten_fish) or 0
+        if catched_fishes > 0 and math.random() < p_rotten then
             meta:set_int("catched_fishes", catched_fishes - 1)
             meta:set_int("rotten_fishes", rotten_fishes + 1)
         end
 
         state = fishtrap_refresh_state(pos, meta)
 
-        -- Stop the timer if contents reach the max capacity
         if state == "full" then
             return false
         end
 
-        -- Continue the timer while operational/faulty checks keep running
         return true
     end,
 
@@ -206,8 +286,16 @@ minetest.register_node("exile_fishtrap:fishtrap", {
         local catched_fishes = meta:get_int("catched_fishes")
         local rotten_fishes = meta:get_int("rotten_fishes")
 
+        if state == "deteriorated" then
+            if rotten_fishes > 0 then
+                minetest.add_item(pos, { name = "exile_fishtrap:rotten_fish", count = rotten_fishes })
+            end
+            return
+        end
+
         if state == "faulty" then
             minetest.add_item(pos, { name = "tech:stick", count = math.random(24, 36) })
+            return
         end
 
         if catched_fishes > 0 then

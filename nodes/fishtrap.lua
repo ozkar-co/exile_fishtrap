@@ -37,39 +37,39 @@ local function fishtrap_set_state(pos, meta, state)
     local total = catched_fishes + rotten_fishes
     local contents_desc
     if total == 0 then
-        contents_desc = "empty"
+        contents_desc = "nothing visible"
     elseif total < capacity / 2 then
-        contents_desc = "seems to have some fish"
+        contents_desc = "some movement inside"
     else
-        contents_desc = "seems to have quite a few fish"
+        contents_desc = "quite active"
     end
     local contents_line = "Contents: " .. contents_desc
     local status_line, note_line
 
     if state == "full" then
-        status_line = "Status: Full"
-        note_line = "Note: Don't let it get too old or it will deteriorate"
+        status_line = "Status: Bulging at the seams"
+        note_line = "Note: Best not to leave it much longer"
     elseif state == "loaded" then
-        status_line = "Status: Loaded"
-        note_line = "Note: Has fish, still catching"
+        status_line = "Status: Something stirs within"
+        note_line = "Note: Patience"
     elseif state == "proper" then
-        status_line = "Status: Properly set"
-        note_line = "Note: Operational"
+        status_line = "Status: Still waters"
+        note_line = "Note: Waiting"
     elseif state == "misplaced" then
-        status_line = "Status: Misplaced"
-        note_line = "Note: Needs sea water above and on all sides"
+        status_line = "Status: Feels wrong here"
+        note_line = "Note: The currents don't seem right"
     elseif state == "faulty" then
-        status_line = "Status: Faulty"
-        note_line = "Note: Damaged trap: no longer operational"
+        status_line = "Status: Looks worse for wear"
+        note_line = "Note: Probably not worth tending to"
     elseif state == "deteriorated" then
-        status_line = "Status: Too old and deteriorated"
-        note_line = "Note: Only rotten fish remains"
+        status_line = "Status: Something smells off"
+        note_line = "Note: Whatever was here has seen better days"
     else
-        status_line = "Status: Unknown"
+        status_line = "Status: Hard to tell"
         note_line = "Note:"
     end
 
-    minimal.infotext_merge(pos, contents_line .. "\n" .. status_line .. "\n" .. note_line, meta)
+    minimal.infotext_set(pos, meta, contents_line .. "\n" .. status_line .. "\n" .. note_line)
 end
 
 local function fishtrap_arm_full_decay_timer(pos, meta)

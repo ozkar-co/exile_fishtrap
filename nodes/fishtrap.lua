@@ -1,5 +1,5 @@
 local function fishtrap_get_capacity()
-    return max_catched_fishes
+    return max_catched_fishes or 24
 end
 
 local function fishtrap_get_contents(meta)
@@ -33,50 +33,34 @@ local function fishtrap_set_state(pos, meta, state)
     local capacity = fishtrap_get_capacity()
 
     meta:set_string("fishtrap_state", state)
-    minimal.infotext_set_key(
-        pos,
-        "Contents",
-        catched_fishes .. " fish, " .. rotten_fishes .. " rotten / " .. capacity
-    )
+
+    local contents_line = "Contents: " .. catched_fishes .. " fish, " .. rotten_fishes .. " rotten / " .. capacity
+    local status_line, note_line
 
     if state == "full" then
-        minimal.infotext_set_key(pos, "Status", "Full")
-        minimal.infotext_set_key(pos, "Note", "Aging started (30 min)")
-        return
+        status_line = "Status: Full"
+        note_line = "Note: Don't let it get too old or it will deteriorate"
+    elseif state == "loaded" then
+        status_line = "Status: Loaded"
+        note_line = "Note: Has fish, still catching"
+    elseif state == "proper" then
+        status_line = "Status: Properly set"
+        note_line = "Note: Operational"
+    elseif state == "misplaced" then
+        status_line = "Status: Misplaced"
+        note_line = "Note: Needs sea water above and on all sides"
+    elseif state == "faulty" then
+        status_line = "Status: Faulty"
+        note_line = "Note: Damaged trap: no longer operational"
+    elseif state == "deteriorated" then
+        status_line = "Status: Too old and deteriorated"
+        note_line = "Note: Only rotten fish remains"
+    else
+        status_line = "Status: Unknown"
+        note_line = "Note:"
     end
 
-    if state == "loaded" then
-        minimal.infotext_set_key(pos, "Status", "Loaded")
-        minimal.infotext_set_key(pos, "Note", "Has fish, still catching")
-        return
-    end
-
-    if state == "proper" then
-        minimal.infotext_set_key(pos, "Status", "Properly set")
-        minimal.infotext_set_key(pos, "Note", "Operational")
-        return
-    end
-
-    if state == "misplaced" then
-        minimal.infotext_set_key(pos, "Status", "Misplaced")
-        minimal.infotext_set_key(pos, "Note", "Needs sea water above and on all sides")
-        return
-    end
-
-    if state == "faulty" then
-        minimal.infotext_set_key(pos, "Status", "Faulty")
-        minimal.infotext_set_key(pos, "Note", "Damaged trap: no longer operational")
-        return
-    end
-
-    if state == "deteriorated" then
-        minimal.infotext_set_key(pos, "Status", "Too old and deteriorated")
-        minimal.infotext_set_key(pos, "Note", "Only rotten fish remains")
-        return
-    end
-
-    minimal.infotext_set_key(pos, "Status", "Unknown")
-    minimal.infotext_set_key(pos, "Note", "")
+    minimal.infotext_merge(pos, contents_line .. "\n" .. status_line .. "\n" .. note_line, meta)
 end
 
 local function fishtrap_arm_full_decay_timer(pos, meta)

@@ -15,4 +15,4 @@ probability_faulty_trap = 0.01
 fishtrap_full_decay_time = 30 * 60
 
 -- max fishes in the trap
-max_catched_fishes = minimal.stack_max_heavy
+max_catched_fishes = minimal.stack_max_heavy or 99

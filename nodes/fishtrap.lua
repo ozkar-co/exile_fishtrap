@@ -66,7 +66,7 @@ local function fishtrap_set_state(pos, meta, state)
         note_line = "Note: Whatever was here has seen better days"
     else
         status_line = "Status: Hard to tell"
-        note_line = "Note:"
+        note_line = "Note: Noting to say"
     end
 
     minimal.infotext_set(pos, meta, contents_line .. "\n" .. status_line .. "\n" .. note_line)

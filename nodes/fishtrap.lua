@@ -1,3 +1,60 @@
+-- Valid setup requires sea water above and on all four horizontal sides.
+local function fishtrap_is_properly_set(pos)
+    local checks = {
+        { x = 0, y = 1, z = 0 },
+        { x = 1, y = 0, z = 0 },
+        { x = -1, y = 0, z = 0 },
+        { x = 0, y = 0, z = 1 },
+        { x = 0, y = 0, z = -1 },
+    }
+
+    for _, off in ipairs(checks) do
+        local n = minetest.get_node_or_nil({ x = pos.x + off.x, y = pos.y + off.y, z = pos.z + off.z })
+        if not n or n.name ~= "nodes_nature:salt_water_source" then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function fishtrap_set_state(pos, meta, state)
+    local catched_fishes = meta:get_int("catched_fishes")
+    meta:set_string("fishtrap_state", state)
+    minimal.infotext_set_key(pos, "Contents", catched_fishes .. " fish")
+
+    if state == "full" then
+        minimal.infotext_set_key(pos, "Status", "Full")
+        minimal.infotext_set_key(pos, "Note", "Ready to collect")
+        return
+    end
+
+    if state == "proper" then
+        minimal.infotext_set_key(pos, "Status", "Properly set")
+        minimal.infotext_set_key(pos, "Note", "Operational")
+        return
+    end
+
+    minimal.infotext_set_key(pos, "Status", "Faulty")
+    minimal.infotext_set_key(pos, "Note", "Needs sea water above and on all sides")
+end
+
+local function fishtrap_refresh_state(pos, meta)
+    local catched_fishes = meta:get_int("catched_fishes")
+    if catched_fishes >= max_catched_fishes then
+        fishtrap_set_state(pos, meta, "full")
+        return "full"
+    end
+
+    if fishtrap_is_properly_set(pos) then
+        fishtrap_set_state(pos, meta, "proper")
+        return "proper"
+    end
+
+    fishtrap_set_state(pos, meta, "faulty")
+    return "faulty"
+end
+
 minetest.register_node("exile_fishtrap:fishtrap", {
     description = "Primitive Fishtrap",
     drawtype = "nodebox",
@@ -83,27 +140,26 @@ minetest.register_node("exile_fishtrap:fishtrap", {
     drowning = 1,
 
     on_construct = function(pos)
-        -- Get the metadata of the node
         local meta = minetest.get_meta(pos)
-
-        -- Get the node and the node above that
-        local node_above = minetest.get_node({ x = pos.x, y = pos.y + 1, z = pos.z })
-
         meta:set_int("catched_fishes", 0)
-        minimal.infotext_set_key(pos, "Contents", "0 fish")
-        minimal.infotext_set_key(pos, "Status", "Disabled")
-
-        -- Only start the timer if placed in a block of water under water
-        if node_above.name == "nodes_nature:salt_water_source" then
-            minetest.get_node_timer(pos):start(fishtrap_timer)
-            minimal.infotext_set_key(pos, "Status", "Operational")
-        else
-            minimal.infotext_set_key(pos, "Note", "Put on sea to start catching fish")
-        end
+        meta:set_string("fishtrap_state", "faulty")
+        fishtrap_refresh_state(pos, meta)
+        -- Always run the timer so the trap can recover automatically if water setup is fixed later.
+        minetest.get_node_timer(pos):start(fishtrap_timer)
     end,
 
     on_timer = function(pos, elapsed)
         local meta = minetest.get_meta(pos)
+        local state = fishtrap_refresh_state(pos, meta)
+
+        if state == "full" then
+            return false
+        end
+
+        if state ~= "proper" then
+            return true
+        end
+
         local catched_fishes = meta:get_int("catched_fishes")
 
         if math.random() < probability_catch_fish then
@@ -114,23 +170,27 @@ minetest.register_node("exile_fishtrap:fishtrap", {
             end
 
             meta:set_int("catched_fishes", catched_fishes)
-            minimal.infotext_set_key(pos, "Contents", catched_fishes .. " fish")
+            state = fishtrap_refresh_state(pos, meta)
 
             -- Stop the timer if catched fish reaches the max
-            if catched_fishes >= max_catched_fishes then
-                minimal.infotext_set_key(pos, "Status", "Full")
+            if state == "full" then
                 return false
             end
         end
 
-        -- Continue the timer until a fish is caught
+        -- Continue the timer while operational/faulty checks keep running
         return true
     end,
 
     on_destruct = function(pos)
-        -- drops its contents when broken
         local meta = minetest.get_meta(pos)
+        local state = meta:get_string("fishtrap_state")
         local catched_fishes = meta:get_int("catched_fishes")
+
+        if state == "faulty" then
+            minetest.add_item(pos, { name = "tech:stick", count = math.random(24, 36) })
+        end
+
         if catched_fishes > 0 then
             minetest.add_item(pos, { name = "animals:carcass_fish_small", count = catched_fishes })
         end

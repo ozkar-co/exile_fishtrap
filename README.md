@@ -4,12 +4,22 @@ Adds a primitive fish trap for passive fish collection.
 
 ## How it works
 
-- Craft a fish trap and place it so the node above it is sea water (`nodes_nature:salt_water_source`).
-- If placement is valid, the trap starts its timer and becomes operational.
+- Craft a fish trap and place it in sea water.
+- A valid setup requires sea water above the trap and on all four horizontal sides.
 - Every timer cycle (60s), it has a 10% chance to catch 1 small fish.
 - Caught fish are stored internally and shown in infotext (`Contents`).
-- When capacity is reached, status changes to `Full` and the timer stops.
-- Breaking the trap drops all stored fish (`animals:carcass_fish_small`).
+- The trap continuously re-validates setup conditions while running.
+
+## Statuses (shown when pointing at the node)
+
+- `Properly set`: setup is valid and the trap can catch fish.
+- `Faulty`: setup is invalid (land placement, missing water above, or missing water on one or more sides).
+- `Full`: maximum stored fish reached; timer stops.
+
+## Break behavior
+
+- Breaking the trap always drops stored fish (`animals:carcass_fish_small`).
+- If broken while `Faulty`, it also drops between 24 and 36 sticks.
 
 ## Recipe
 
@@ -19,6 +29,4 @@ Adds a primitive fish trap for passive fish collection.
 
 ## Current limits
 
-- The trap only checks placement conditions when constructed.
-- If water conditions change later, it does not auto-disable or re-enable.
-- The trap only catches fish from sea-water setup (not freshwater).
+- The trap only catches fish from sea-water setup (`nodes_nature:salt_water_source`).

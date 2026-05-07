@@ -20,8 +20,14 @@ end
 
 local function fishtrap_set_state(pos, meta, state)
     local catched_fishes = meta:get_int("catched_fishes")
+    local rotten_fishes = meta:get_int("rotten_fishes")
+    local total_contents = catched_fishes + rotten_fishes
     meta:set_string("fishtrap_state", state)
-    minimal.infotext_set_key(pos, "Contents", catched_fishes .. " fish")
+    minimal.infotext_set_key(
+        pos,
+        "Contents",
+        catched_fishes .. " fish, " .. rotten_fishes .. " rotten / " .. max_catched_fishes
+    )
 
     if state == "full" then
         minimal.infotext_set_key(pos, "Status", "Full")
@@ -41,7 +47,8 @@ end
 
 local function fishtrap_refresh_state(pos, meta)
     local catched_fishes = meta:get_int("catched_fishes")
-    if catched_fishes >= max_catched_fishes then
+    local rotten_fishes = meta:get_int("rotten_fishes")
+    if (catched_fishes + rotten_fishes) >= max_catched_fishes then
         fishtrap_set_state(pos, meta, "full")
         return "full"
     end
@@ -142,6 +149,7 @@ minetest.register_node("exile_fishtrap:fishtrap", {
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)
         meta:set_int("catched_fishes", 0)
+        meta:set_int("rotten_fishes", 0)
         meta:set_string("fishtrap_state", "faulty")
         fishtrap_refresh_state(pos, meta)
         -- Always run the timer so the trap can recover automatically if water setup is fixed later.
@@ -161,21 +169,31 @@ minetest.register_node("exile_fishtrap:fishtrap", {
         end
 
         local catched_fishes = meta:get_int("catched_fishes")
+        local rotten_fishes = meta:get_int("rotten_fishes")
 
         if math.random() < probability_catch_fish then
-            catched_fishes = catched_fishes + 1
+            if (catched_fishes + rotten_fishes) < max_catched_fishes then
+                catched_fishes = catched_fishes + 1
 
-            if catched_fishes > max_catched_fishes then
-                catched_fishes = max_catched_fishes
+                if catched_fishes > max_catched_fishes then
+                    catched_fishes = max_catched_fishes
+                end
+
+                meta:set_int("catched_fishes", catched_fishes)
             end
+        end
 
-            meta:set_int("catched_fishes", catched_fishes)
-            state = fishtrap_refresh_state(pos, meta)
+        -- Once per cycle, one trapped fish can rot.
+        if catched_fishes > 0 and math.random() < probability_rotten_fish then
+            meta:set_int("catched_fishes", catched_fishes - 1)
+            meta:set_int("rotten_fishes", rotten_fishes + 1)
+        end
 
-            -- Stop the timer if catched fish reaches the max
-            if state == "full" then
-                return false
-            end
+        state = fishtrap_refresh_state(pos, meta)
+
+        -- Stop the timer if contents reach the max capacity
+        if state == "full" then
+            return false
         end
 
         -- Continue the timer while operational/faulty checks keep running
@@ -186,6 +204,7 @@ minetest.register_node("exile_fishtrap:fishtrap", {
         local meta = minetest.get_meta(pos)
         local state = meta:get_string("fishtrap_state")
         local catched_fishes = meta:get_int("catched_fishes")
+        local rotten_fishes = meta:get_int("rotten_fishes")
 
         if state == "faulty" then
             minetest.add_item(pos, { name = "tech:stick", count = math.random(24, 36) })
@@ -193,6 +212,9 @@ minetest.register_node("exile_fishtrap:fishtrap", {
 
         if catched_fishes > 0 then
             minetest.add_item(pos, { name = "animals:carcass_fish_small", count = catched_fishes })
+        end
+        if rotten_fishes > 0 then
+            minetest.add_item(pos, { name = "exile_fishtrap:rotten_fish", count = rotten_fishes })
         end
     end,
 })

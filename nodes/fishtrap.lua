@@ -1,9 +1,5 @@
 local function fishtrap_get_capacity()
-    local capacity = tonumber(max_catched_fishes)
-    if not capacity then
-        capacity = (minimal and tonumber(minimal.stack_max_heavy)) or 99
-    end
-    return math.max(1, math.floor(capacity))
+    return max_catched_fishes
 end
 
 local function fishtrap_get_contents(meta)
@@ -88,8 +84,7 @@ local function fishtrap_arm_full_decay_timer(pos, meta)
         return
     end
     meta:set_int("full_decay_armed", 1)
-    local decay_time = tonumber(fishtrap_full_decay_time) or (30 * 60)
-    minetest.get_node_timer(pos):start(decay_time)
+    minetest.get_node_timer(pos):start(fishtrap_full_decay_time)
 end
 
 local function fishtrap_refresh_state(pos, meta)
@@ -247,8 +242,7 @@ minetest.register_node("exile_fishtrap:fishtrap", {
             return true
         end
 
-        local p_faulty = tonumber(probability_faulty_trap) or 0
-        if math.random() < p_faulty then
+        if math.random() < probability_faulty_trap then
             fishtrap_set_state(pos, meta, "faulty")
             return false
         end
@@ -256,8 +250,7 @@ minetest.register_node("exile_fishtrap:fishtrap", {
         local catched_fishes, rotten_fishes, total = fishtrap_get_contents(meta)
         local capacity = fishtrap_get_capacity()
 
-        local p_catch = tonumber(probability_catch_fish) or 0
-        if math.random() < p_catch then
+        if math.random() < probability_catch_fish then
             if total < capacity then
                 catched_fishes = catched_fishes + 1
                 meta:set_int("catched_fishes", catched_fishes)
@@ -265,8 +258,7 @@ minetest.register_node("exile_fishtrap:fishtrap", {
         end
 
         -- Once per cycle, one trapped fish can rot.
-        local p_rotten = tonumber(probability_rotten_fish) or 0
-        if catched_fishes > 0 and math.random() < p_rotten then
+        if catched_fishes > 0 and math.random() < probability_rotten_fish then
             meta:set_int("catched_fishes", catched_fishes - 1)
             meta:set_int("rotten_fishes", rotten_fishes + 1)
         end

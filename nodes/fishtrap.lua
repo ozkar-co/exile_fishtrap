@@ -34,7 +34,16 @@ local function fishtrap_set_state(pos, meta, state)
 
     meta:set_string("fishtrap_state", state)
 
-    local contents_line = "Contents: " .. catched_fishes .. " fish, " .. rotten_fishes .. " rotten / " .. capacity
+    local total = catched_fishes + rotten_fishes
+    local contents_desc
+    if total == 0 then
+        contents_desc = "empty"
+    elseif total < capacity / 2 then
+        contents_desc = "seems to have some fish"
+    else
+        contents_desc = "seems to have quite a few fish"
+    end
+    local contents_line = "Contents: " .. contents_desc
     local status_line, note_line
 
     if state == "full" then

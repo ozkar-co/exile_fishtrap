@@ -1,4 +1,4 @@
-minetest.register_node("tech:fishtrap", {
+minetest.register_node("exile_fishtrap:fishtrap", {
     description = "Primitive Fishtrap",
     drawtype = "nodebox",
     tiles = { "tech_wattle.png" },
